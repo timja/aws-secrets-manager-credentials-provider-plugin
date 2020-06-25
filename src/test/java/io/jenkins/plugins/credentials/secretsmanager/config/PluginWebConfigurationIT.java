@@ -5,6 +5,7 @@ import io.jenkins.plugins.credentials.secretsmanager.util.PluginConfigurationFor
 import org.junit.Rule;
 import org.junit.Test;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.SoftAssertions.assertSoftly;
 
 public class PluginWebConfigurationIT extends AbstractPluginConfigurationIT {
@@ -27,11 +28,11 @@ public class PluginWebConfigurationIT extends AbstractPluginConfigurationIT {
     }
 
     @Override
-    protected void setTagFilters(String key, String value) {
+    protected void setFilters(Filter... filters) {
         r.configure(f -> {
             final PluginConfigurationForm form = new PluginConfigurationForm(f);
 
-            form.setFilter(key, value);
+            form.setFilter(filters[0]);
         });
     }
 
@@ -45,35 +46,44 @@ public class PluginWebConfigurationIT extends AbstractPluginConfigurationIT {
     }
 
     @Test
-    public void shouldCustomiseAndResetConfiguration() {
+    public void shouldCustomiseAndResetEndpointConfiguration() {
         r.configure(f -> {
             final PluginConfigurationForm form = new PluginConfigurationForm(f);
-
             form.setEndpointConfiguration("http://localhost:4584", "us-east-1");
-            form.setFilter("product", "foobar");
+        });
+
+        final PluginConfiguration configBefore = getPluginConfiguration();
+
+        assertThat(configBefore.getEndpointConfiguration()).isNotNull();
+
+        r.configure(f -> {
+            final PluginConfigurationForm form = new PluginConfigurationForm(f);
+            form.clearEndpointConfiguration();
+        });
+
+        final PluginConfiguration configAfter = getPluginConfiguration();
+
+        assertThat(configAfter.getEndpointConfiguration()).isNull();
+    }
+
+    @Test
+    public void shouldCustomiseAndResetRoles() {
+        r.configure(f -> {
+            final PluginConfigurationForm form = new PluginConfigurationForm(f);
             form.setRole("arn:aws:iam::123456789012:role/marketingadminrole");
         });
 
         final PluginConfiguration configBefore = getPluginConfiguration();
 
-        assertSoftly(s -> {
-            s.assertThat(configBefore.getEndpointConfiguration()).as("Endpoint Configuration").isNotNull();
-            s.assertThat(configBefore.getFilters().getTag()).as("Filters").isNotNull();
-            s.assertThat(configBefore.getBeta().getRoles()).as("Roles").isNotNull();
-        });
+        assertThat(configBefore.getBeta().getRoles()).isNotNull();
 
         r.configure(f -> {
             final PluginConfigurationForm form = new PluginConfigurationForm(f);
-
-            form.clear();
+            form.clearRoles();
         });
 
         final PluginConfiguration configAfter = getPluginConfiguration();
 
-        assertSoftly(s -> {
-            s.assertThat(configAfter.getEndpointConfiguration()).as("Endpoint Configuration").isNull();
-            s.assertThat(configAfter.getFilters()).as("Filters").isNull();
-            s.assertThat(configAfter.getBeta().getRoles()).as("Roles").isNull();
-        });
+        assertThat(configAfter.getBeta().getRoles()).isNull();
     }
 }

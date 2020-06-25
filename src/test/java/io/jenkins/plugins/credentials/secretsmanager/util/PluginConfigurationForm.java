@@ -1,12 +1,13 @@
 package io.jenkins.plugins.credentials.secretsmanager.util;
 
-import com.gargoylesoftware.htmlunit.ElementNotFoundException;
-import com.gargoylesoftware.htmlunit.html.*;
+import com.gargoylesoftware.htmlunit.html.DomNode;
+import com.gargoylesoftware.htmlunit.html.HtmlButton;
+import com.gargoylesoftware.htmlunit.html.HtmlForm;
+import com.gargoylesoftware.htmlunit.html.HtmlInput;
+import io.jenkins.plugins.credentials.secretsmanager.config.Filter;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Optional;
-import java.util.stream.Collectors;
 
 public class PluginConfigurationForm {
 
@@ -16,25 +17,16 @@ public class PluginConfigurationForm {
         this.form = form;
     }
 
-    public void clear() {
-        this.clearEndpointConfiguration();
-        this.clearFilters();
-        this.clearRoles();
-    }
+    public void setFilter(Filter filter) {
+        form.getInputByName("_.listSecrets").setChecked(true);
 
-    public void clearFilters() {
-        form.getInputByName("_.filters").setChecked(false);
-    }
+        // TODO support multiple filters
+        clickRepeatableAddButton("Filters");
 
-    public void setFilter(String key, String value) {
-        form.getInputByName("_.filters").setChecked(true);
-
-        form.getInputByName("_.tag").setChecked(true);
-        form.getInputByName("_.key").setValueAttribute(key);
-        // The Jenkins config form HTML is not hierarchical, necessitating this fragile selector.
-        form.getInputsByName("_.value").stream()
-                .reduce((first, second) -> second)
-                .ifPresent(lastValueInputInForm -> lastValueInputInForm.setValueAttribute(value));
+        form.getSelectByName("_.key").setSelectedAttribute(filter.getKey(), true);
+        // TODO support multiple filter values
+        // FIXME this is a hack that skips the 'other' _.value input in the form
+        form.getInputsByName("_.value").get(1).setValueAttribute(filter.getValues().get(0).getValue());
     }
 
     public void clearRoles() {
@@ -73,21 +65,18 @@ public class PluginConfigurationForm {
         return form.getOneHtmlElementByAttribute("div", "class", "error").getTextContent();
     }
 
-    private HtmlButton getValidateButton(String textContent) {
-        return form.getByXPath("//span[contains(string(@class),'validate-button')]//button")
+    private void clickRepeatableAddButton(String settingName) {
+        form.getByXPath(String.format("//td[contains(text(), '%s')]/following-sibling::td[@class='setting-main']//span[contains(string(@class),'repeatable-add')]//button[contains(text(), 'Add')]", settingName))
                 .stream()
-                .map(obj -> (HtmlButton) (obj))
-                .filter(button -> button.getTextContent().equals(textContent))
-                .collect(Collectors.toList())
-                .get(0);
+                .findFirst()
+                .ifPresent(button -> clickOrThrowException((HtmlButton) button));
     }
 
     public FormValidationResult clickValidateButton(String textContent) {
-        try {
-            this.getValidateButton(textContent).click();
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
+        form.getByXPath(String.format("//span[contains(string(@class),'validate-button')]//button[contains(text(), '%s')]", textContent))
+                .stream()
+                .findFirst()
+                .ifPresent(button -> clickOrThrowException((HtmlButton) button));
 
         final Optional<String> successMessage = this.getValidateSuccessMessage();
         if (successMessage.isPresent()) {
@@ -95,6 +84,14 @@ public class PluginConfigurationForm {
         } else {
             final String failureMessage = this.getValidateErrorMessage();
             return FormValidationResult.error(failureMessage);
+        }
+    }
+
+    private static void clickOrThrowException(HtmlButton button) {
+        try {
+            button.click();
+        } catch (IOException e) {
+            throw new RuntimeException(e);
         }
     }
 }

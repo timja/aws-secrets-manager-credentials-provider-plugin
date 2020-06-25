@@ -1,9 +1,11 @@
 package io.jenkins.plugins.credentials.secretsmanager.config;
 
+import io.jenkins.plugins.credentials.secretsmanager.util.Lists;
 import org.junit.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.SoftAssertions.assertSoftly;
+import static org.assertj.core.groups.Tuple.tuple;
 
 public abstract class AbstractPluginConfigurationIT {
 
@@ -11,7 +13,7 @@ public abstract class AbstractPluginConfigurationIT {
 
     protected abstract void setEndpointConfiguration(String serviceEndpoint, String signingRegion);
 
-    protected abstract void setTagFilters(String key, String value);
+    protected abstract void setFilters(Filter... filters);
 
     /*
      * Only 1 role is supported for now (because locating the Add button in HtmlUnit is difficult)
@@ -24,8 +26,8 @@ public abstract class AbstractPluginConfigurationIT {
 
         assertSoftly(s -> {
             s.assertThat(config.getEndpointConfiguration()).as("Endpoint Configuration").isNull();
-            s.assertThat(config.getFilters()).as("Filters").isNull();
             s.assertThat(config.getBeta()).as("Beta Features").isNull();
+            s.assertThat(config.getListSecrets()).as("ListSecrets").isNull();
         });
     }
 
@@ -45,17 +47,17 @@ public abstract class AbstractPluginConfigurationIT {
     }
 
     @Test
-    public void shouldCustomiseTagFilter() {
+    public void shouldCustomiseFilters() {
         // Given
-        setTagFilters("product", "foobar");
+        setFilters(new Filter("name", Lists.of(new Value("foo"))));
 
         // When
         final PluginConfiguration config = getPluginConfiguration();
 
         // Then
-        assertThat(config.getFilters().getTag())
-                .extracting("key", "value")
-                .containsOnly("product", "foobar");
+        assertThat(config.getListSecrets().getFilters())
+                .extracting("key", "values")
+                .contains(tuple("name", Lists.of(new Value("foo"))));
     }
 
     @Test
